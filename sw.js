@@ -1,0 +1,55 @@
+/* Guarda uma cópia do app no aparelho para ele abrir sem internet.
+   Com internet, busca sempre a versão mais nova (e atualiza a cópia).
+   Sem internet, usa a cópia guardada.
+   Ao mudar a lista de arquivos abaixo, troque o número da versão. */
+const CACHE = "tjsp-app-v1";
+const FILES = [
+  "./",
+  "index.html",
+  "css/style.css",
+  "js/data.js",
+  "js/app.js",
+  "manifest.webmanifest",
+  "icons/icon-192.png",
+  "icons/icon-512.png",
+  "icons/apple-touch-icon.png"
+];
+
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener("activate", e => {
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", e => {
+  if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  const isFont = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
+  if (url.origin !== location.origin && !isFont) return;
+
+  if (isFont) {
+    // Fontes quase nunca mudam: usa a cópia se já tiver, senão baixa e guarda.
+    e.respondWith(
+      caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return res;
+      }))
+    );
+    return;
+  }
+
+  // Arquivos do app: tenta a internet primeiro; se falhar, usa a cópia.
+  e.respondWith(
+    fetch(e.request).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+      return res;
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }).then(hit => hit || caches.match("./")))
+  );
+});

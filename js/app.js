@@ -329,3 +329,13 @@ view.addEventListener("toggle", e => {
   const n = +d.dataset.week; if (d.open) openWeeks.add(n); else openWeeks.delete(n);
 }, true);
 render();
+
+/* ---------- app instalável e offline ---------- */
+// Só funciona no site publicado (https), não ao abrir o arquivo com dois cliques.
+if (location.protocol.startsWith("http")) {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+  }
+  // Pede ao navegador para não apagar os dados sozinho quando faltar espaço.
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch(e){}
+}
